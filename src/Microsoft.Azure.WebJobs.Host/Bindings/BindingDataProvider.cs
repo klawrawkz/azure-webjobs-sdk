@@ -88,8 +88,9 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
                 return null;
             }
 
-            // The properties on user-defined types are valid binding data.
-            IReadOnlyList<PropertyHelper> bindingDataProperties = PropertyHelper.GetProperties(type);
+            // The properties on user-defined types are valid binding data. We need to take property shadowing/hiding
+            // into account, so we only query for "visible" properties, which are the most derived property definitions.
+            IReadOnlyList<PropertyHelper> bindingDataProperties = PropertyHelper.GetVisibleProperties(type);
             if (bindingDataProperties.Count == 0)
             {
                 return null;
@@ -98,13 +99,11 @@ namespace Microsoft.Azure.WebJobs.Host.Bindings
             Dictionary<string, Type> contract = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
             foreach (PropertyHelper property in bindingDataProperties)
             {
-                if (contract.ContainsKey(property.Name))
+                // shouldn't be any duplicates, but this check is left here for safety
+                if (!contract.ContainsKey(property.Name))
                 {
-                    throw new InvalidOperationException(
-                        string.Format(CultureInfo.InvariantCulture,
-                        "Multiple properties named '{0}' found in type '{1}'.", property.Name, type.Name));
+                    contract.Add(property.Name, property.Property.PropertyType);
                 }
-                contract.Add(property.Name, property.Property.PropertyType);
             }
 
             return new BindingDataProvider(type, contract, bindingDataProperties);

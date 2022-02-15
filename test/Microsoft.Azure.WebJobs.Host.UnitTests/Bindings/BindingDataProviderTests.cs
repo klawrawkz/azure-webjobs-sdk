@@ -50,13 +50,22 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests.Bindings
         }
 
         [Fact]
-        public void FromType_DuplicatePropertiesDetected_Throws()
+        public void FromType_ShadowProperties_ReturnsMostDerived()
         {
-            var ex = Assert.Throws<InvalidOperationException>(() =>
-            {
-                BindingDataProvider.FromType(typeof(DerivedWithNew));
-            });
-            Assert.Equal("Multiple properties named 'A' found in type 'DerivedWithNew'.", ex.Message);
+            var result = BindingDataProvider.FromType(typeof(DerivedWithNew));
+            Assert.Equal(1, result.Contract.Count);
+            Assert.Equal(typeof(int), result.Contract["A"]);
+        }
+
+        [Fact]
+        public void FromType_PropertyHidingHierarchy()
+        {
+            var result = BindingDataProvider.FromType(typeof(PropertyHidingTop));
+            Assert.Equal(4, result.Contract.Count);
+            Assert.Equal(typeof(int), result.Contract["A"]);
+            Assert.Equal(typeof(int), result.Contract["B"]);
+            Assert.Equal(typeof(string), result.Contract["C"]);
+            Assert.Equal(typeof(string), result.Contract["D"]);
         }
 
         [Fact]
@@ -256,6 +265,29 @@ namespace Microsoft.Azure.WebJobs.Host.UnitTests.Bindings
         private class Derived : Base
         {
             public int B { get; set; }
+        }
+
+        private class PropertyHidingBase
+        {
+            public int? A { get; set; }
+            public string B { get; set; }
+            public virtual string D { get; set; }
+        }
+
+        private class PropertyHidingMid : PropertyHidingBase
+        {
+            // hides inherited A
+            new public int A { get; set; }
+            public string C { get; set; }
+            public override string D { get; set; }
+        }
+
+        private class PropertyHidingTop : PropertyHidingMid
+        {
+            // hides inherited B without "new" keyword
+#pragma warning disable CS0108 // Member hides inherited member; missing new keyword
+            public int B { get; set; }
+#pragma warning restore CS0108 // Member hides inherited member; missing new keyword
         }
     }
 }
